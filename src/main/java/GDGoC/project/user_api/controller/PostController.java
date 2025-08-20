@@ -42,7 +42,7 @@ public class PostController {
 
   @PreAuthorize("isAuthenticated()")
   @PostMapping
-  public ResponseEntity<PostDto> create(@Valid PostRequest req,
+  public ResponseEntity<PostDto> create(@Valid @RequestBody PostRequest req,
                                         Principal principal) {
 
     User user = userService.getUser(principal.getName());
@@ -57,7 +57,7 @@ public class PostController {
   @PreAuthorize("isAuthenticated()")
   @PutMapping("/{id}")
   public PostDto modify(@PathVariable Integer id,
-                        @Valid PostRequest req,
+                        @Valid @RequestBody PostRequest req,
                         Principal principal) {
 
     Post post = postService.getPost(id);

@@ -46,63 +46,44 @@ public class SecurityConfig {
         return configuration.getAuthenticationManager();
     }
 
-    @Bean /* 빈(bean)은 스프링에 의해 생성 또는 관리되는 객체를 의미 */
+    @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .cors((corsCustomizer -> corsCustomizer.configurationSource(new CorsConfigurationSource() {
+                .cors(cors -> cors.configurationSource(request -> {
+                    var cfg = new CorsConfiguration();
+                    cfg.setAllowedOrigins(java.util.List.of("http://localhost:5500","http://127.0.0.1:5500")); // ✅ 프론트 도메인
+                    cfg.setAllowedMethods(java.util.List.of("GET","POST","PUT","DELETE","PATCH","OPTIONS"));
+                    cfg.setAllowedHeaders(java.util.List.of("*"));
+                    cfg.setAllowCredentials(true);
+                    cfg.setExposedHeaders(java.util.List.of("Authorization")); // ✅ 토큰 헤더 노출
+                    cfg.setMaxAge(3600L);
+                    return cfg;
+                }))
+                .csrf(csrf -> csrf.disable())
+                .formLogin(form -> form.disable())
+                .httpBasic(basic -> basic.disable())
+                .authorizeHttpRequests(auth -> auth
+                        // ✅ 로그인/회원가입은 누구나 허용
+                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/join").permitAll()               // ← 추가
 
-                    @Override
-                    public CorsConfiguration getCorsConfiguration(HttpServletRequest request) {
-
-                        CorsConfiguration configuration = new CorsConfiguration();
-
-                        configuration.setAllowedOrigins(Collections.singletonList("http://localhost:5500"));
-                        configuration.setAllowedMethods(Collections.singletonList("*"));
-                        configuration.setAllowCredentials(true);
-                        configuration.setAllowedHeaders(Collections.singletonList("*"));
-                        configuration.setMaxAge(3600L);
-
-                        configuration.setExposedHeaders(Collections.singletonList("Authorization"));
-
-                        return configuration;
-                    }
-                })));
-
-        http
-                .csrf((auth) -> auth.disable());
-
-        //From 로그인 방식 disable
-        http
-                .formLogin((auth) -> auth.disable());
-
-        //http basic 인증 방식 disable
-        http
-                .httpBasic((auth) -> auth.disable());
-
-        //경로별 인가 작업
-        http
-                .authorizeHttpRequests((auth) -> auth
-                        .requestMatchers("/login", "/", "/join", "/swagger").permitAll()
+                        // (기존 허용 경로 유지)
+                        .requestMatchers("/", "/swagger", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/admin").hasRole("ADMIN")
-                        .anyRequest().authenticated());
+                        .anyRequest().authenticated()
+                )
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
-        //필터 추가 LoginFilter()는 인자를 받음 (AuthenticationManager() 메소드에 authenticationConfiguration 객체를 넣어야 함) 따라서 등록 필요
-        http
-                .addFilterAt(new LoginFilter(authenticationManager(authenticationConfiguration), jwtUtil), UsernamePasswordAuthenticationFilter.class);
+        // ✅ LoginFilter가 /api/auth/login 처리하도록 URL 지정
+        var loginFilter = new LoginFilter(authenticationManager(authenticationConfiguration), jwtUtil);
+        loginFilter.setFilterProcessesUrl("/api/auth/login");
 
-        http
-                .addFilterBefore(new JWTFilter(jwtUtil), LoginFilter.class);
-
-        //세션 설정
-        http
-                .sessionManagement((session) -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+        http.addFilterAt(loginFilter, UsernamePasswordAuthenticationFilter.class);
+        http.addFilterBefore(new JWTFilter(jwtUtil), LoginFilter.class);
 
         return http.build();
     }
 
-
-    // 비밀번호 인코더를 정의
     @Bean
     PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
