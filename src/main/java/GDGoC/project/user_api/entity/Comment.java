@@ -31,5 +31,11 @@ public class Comment {
   private LocalDateTime modifyDate;
 
   @ManyToMany
+  @JoinTable(
+          name = "comment_likes",                      // ✅ 실제 테이블명과 통일
+          joinColumns = @JoinColumn(name = "Comment_id"),
+          inverseJoinColumns = @JoinColumn(name = "likes_id")
+          // uniqueConstraints 는 (운영 DB 충돌 방지 차원에서) DDL 로 추가 권장 → 아래 4) 참고
+  )
   private Set<User> likes = new HashSet<>();
 }

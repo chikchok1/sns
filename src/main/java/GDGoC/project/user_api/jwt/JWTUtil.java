@@ -1,6 +1,5 @@
 package GDGoC.project.user_api.jwt;
 
-import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
@@ -12,6 +11,7 @@ import java.util.Date;
 
 @Component
 public class JWTUtil {
+
   private final SecretKey secretKey;
 
   // application.properties: spring.jwt.secret= <Base64 인코딩된 32바이트 이상 키>
@@ -22,6 +22,12 @@ public class JWTUtil {
   public String getUsername(String token) {
     return Jwts.parser().verifyWith(secretKey).build()
             .parseSignedClaims(token).getPayload().get("username", String.class);
+  }
+
+  // ✅ 새로 추가
+  public String getName(String token) {
+    return Jwts.parser().verifyWith(secretKey).build()
+            .parseSignedClaims(token).getPayload().get("name", String.class);
   }
 
   public String getRole(String token) {
@@ -35,6 +41,7 @@ public class JWTUtil {
     return exp.before(new Date());
   }
 
+  // 기존 (username + role)
   public String createJwt(String username, String role, Long expiredMs) {
     long now = System.currentTimeMillis();
     return Jwts.builder()
@@ -42,7 +49,20 @@ public class JWTUtil {
             .claim("role", role)
             .issuedAt(new Date(now))
             .expiration(new Date(now + expiredMs))
-            .signWith(secretKey, Jwts.SIG.HS256)   // ✅ 알고리즘 명시
+            .signWith(secretKey, Jwts.SIG.HS256)
+            .compact();
+  }
+
+  // ✅ 새로 추가 (username + name + role)
+  public String createJwt(String username, String name, String role, Long expiredMs) {
+    long now = System.currentTimeMillis();
+    return Jwts.builder()
+            .claim("username", username)
+            .claim("name", name)        // 이름 클레임 추가
+            .claim("role", role)
+            .issuedAt(new Date(now))
+            .expiration(new Date(now + expiredMs))
+            .signWith(secretKey, Jwts.SIG.HS256)
             .compact();
   }
 }

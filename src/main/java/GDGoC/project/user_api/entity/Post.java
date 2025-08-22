@@ -31,9 +31,10 @@ public class Post {
 
   @ManyToMany
   @JoinTable(
-          name = "Post_likes",
+          name = "post_likes",
           joinColumns = @JoinColumn(name = "post_id"),              // Post FK
           inverseJoinColumns = @JoinColumn(name = "user_id")        // User FK (DB 실제 컬럼명에 맞춤)
+
   )
   private Set<User> likes = new HashSet<>();
 }

@@ -1,66 +1,78 @@
 package GDGoC.project.user_api.jwt;
 
 import GDGoC.project.user_api.dto.CustomUserDetails;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-import java.util.Collection;
-import java.util.Iterator;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 public class LoginFilter extends UsernamePasswordAuthenticationFilter {
 
   private final AuthenticationManager authenticationManager;
   private final JWTUtil jwtUtil;
 
-  public LoginFilter(AuthenticationManager authenticationManager,  JWTUtil jwtUtil) {
+  public LoginFilter(AuthenticationManager authenticationManager, JWTUtil jwtUtil) {
     this.authenticationManager = authenticationManager;
     this.jwtUtil = jwtUtil;
+    // 프론트가 호출하는 로그인 엔드포인트와 일치시킴
+    setFilterProcessesUrl("/api/auth/login");
   }
 
   @Override
-  public Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response) throws AuthenticationException {
-
-    //클라이언트 요청에서 username, password 추출
+  public Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response)
+          throws AuthenticationException {
+    // form-urlencoded 기준
     String username = obtainUsername(request);
     String password = obtainPassword(request);
 
-    System.out.println("username: " + username);
+    UsernamePasswordAuthenticationToken authToken =
+            new UsernamePasswordAuthenticationToken(username, password);
 
-    //스프링 시큐리티에서 username과 password를 검증하기 위해서는 token에 담아야 함
-    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(username, password, null);
-
-    //token에 담은 검증을 위한 AuthenticationManager로 전달
     return authenticationManager.authenticate(authToken);
   }
 
-  //로그인 성공시 실행하는 메소드
   @Override
-  protected void successfulAuthentication(HttpServletRequest request, HttpServletResponse response, FilterChain chain, Authentication authentication) {
-    CustomUserDetails customUserDetails = (CustomUserDetails) authentication.getPrincipal();
+  protected void successfulAuthentication(HttpServletRequest request,
+                                          HttpServletResponse response,
+                                          FilterChain chain,
+                                          Authentication authentication) throws IOException, ServletException {
 
-    String username = customUserDetails.getUsername();
+    CustomUserDetails principal = (CustomUserDetails) authentication.getPrincipal();
 
-    Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
-    Iterator<? extends GrantedAuthority> iterator = authorities.iterator();
-    GrantedAuthority auth = iterator.next();
+    String username = principal.getUsername();      // 아이디
+    String name     = principal.getName();          // ✅ 이름 (CustomUserDetails에 getName() 추가해둔 것)
+    String role     = authentication.getAuthorities()
+            .iterator().next().getAuthority();
 
-    String role = auth.getAuthority();
+    // ✅ 이름(name) 클레임까지 포함하여 발급 (JWTUtil도 같은 시그니처로 수정되어 있어야 함)
+    String token = jwtUtil.createJwt(username, name, role, 1000L * 60 * 60);
 
-    String token = jwtUtil.createJwt(username, role, 60*60*1000L);
+    // 헤더로 전달
+    response.setHeader("Authorization", "Bearer " + token);
 
-    response.addHeader("Authorization", "Bearer " + token);
+    // 바디로도 안전하게 내려줌 (프론트가 헤더/바디 어느 쪽이든 처리 가능)
+    response.setContentType("application/json;charset=UTF-8");
+    Map<String, Object> body = new HashMap<>();
+    body.put("token", "Bearer " + token);
+    body.put("username", username);
+    body.put("name", name);                         // ✅ 이름 함께 내려줌
+    new ObjectMapper().writeValue(response.getWriter(), body);
   }
 
-  //로그인 실패시 실행하는 메소드
   @Override
-  protected void unsuccessfulAuthentication(HttpServletRequest request, HttpServletResponse response, AuthenticationException failed) {
+  protected void unsuccessfulAuthentication(HttpServletRequest request,
+                                            HttpServletResponse response,
+                                            AuthenticationException failed) {
     response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
   }
 }

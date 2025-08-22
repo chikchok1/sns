@@ -18,6 +18,11 @@ public class CustomUserDetails implements UserDetails {
     return user;
   }
 
+  // ✅ 이름 게터 추가
+  public String getName() {
+    return user.getName();
+  }
+
   @Override
   public Collection<? extends GrantedAuthority> getAuthorities() {
 
@@ -46,6 +51,8 @@ public class CustomUserDetails implements UserDetails {
 
     return user.getUsername();
   }
+
+
 
   @Override
   public boolean isAccountNonExpired() {
